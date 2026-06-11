@@ -41,11 +41,15 @@ jobs:
             --noconfirm `
             Wafer_Summary_Report.py
 
-      - name: Upload EXE as artifact
+      - name: Zip EXE
+        run: |
+          Compress-Archive -Path dist\Wafer_Summary_Report.exe -DestinationPath dist\Wafer_Summary_Report.zip
+
+      - name: Upload ZIP as artifact
         uses: actions/upload-artifact@v4
         with:
           name: Wafer_Summary_Report
-          path: dist/Wafer_Summary_Report.exe
+          path: dist/Wafer_Summary_Report.zip
           retention-days: 30
 
       - name: Create Release
@@ -53,5 +57,5 @@ jobs:
         with:
           tag_name: latest
           name: "Wafer_Summary_Report (latest build)"
-          files: dist/Wafer_Summary_Report.exe
+          files: dist/Wafer_Summary_Report.zip
           make_latest: true
