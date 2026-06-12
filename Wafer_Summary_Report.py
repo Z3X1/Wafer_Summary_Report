@@ -598,100 +598,59 @@ def process(wafer_id_user, folder_list, progress_cb, status_cb):
 class App(object):
     def __init__(self, root):
         self.root     = root
-        self._running = False   # prevents duplicate generate calls
+        self._running = False
         self._btn_gen = None
 
         root.title("Wafer_Summary_Report")
         root.resizable(False, False)
         root.configure(bg="#f0f0f0")
 
-        # Wafer ID input row
-        frm_top = tk.Frame(root, bg="#f0f0f0")
-        frm_top.pack(padx=20, pady=(20, 5), fill="x")
-        tk.Label(frm_top, text="Wafer ID:",
-                 bg="#f0f0f0", font=("Arial", 11)).pack(side="left")
+        # ── Title ─────────────────────────────────────────────────────────────
+        tk.Label(root, text="Wafer_Summary_Report",
+                 bg="#f0f0f0", font=("Arial", 20, "bold")).pack(pady=(30, 20))
+
+        # ── Wafer_ID input ────────────────────────────────────────────────────
+        frm_wid = tk.Frame(root, bg="#f0f0f0")
+        frm_wid.pack(padx=30, pady=(0, 20), fill="x")
+        tk.Label(frm_wid, text=u"\u8acb\u8f38\u5165 Wafer_ID:",
+                 bg="#f0f0f0", font=("Arial", 12)).pack(side="left")
         self.var_wid = tk.StringVar()
-        tk.Entry(frm_top, textvariable=self.var_wid,
-                 font=("Arial", 11), width=35).pack(side="left", padx=(8, 0))
+        tk.Entry(frm_wid, textvariable=self.var_wid,
+                 font=("Arial", 12), width=40).pack(side="left",
+                 padx=(10, 0), fill="x", expand=True)
 
-        # Instruction label
-        tk.Label(root,
-                 text="Drag folders into the area below (multiple allowed, must contain XML files)",
-                 bg="#f0f0f0", font=("Arial", 10)).pack(anchor="w", padx=20)
+        # ── Progress bar ──────────────────────────────────────────────────────
+        frm_prog = tk.Frame(root, bg="#f0f0f0")
+        frm_prog.pack(padx=30, pady=(0, 5), fill="x")
+        tk.Label(frm_prog, text=u"\u9032\u5ea6:",
+                 bg="#f0f0f0", font=("Arial", 12)).pack(side="left")
+        self.progress = ttk.Progressbar(frm_prog, length=480, mode="determinate")
+        self.progress.pack(side="left", padx=(10, 0), fill="x", expand=True)
 
-        # Folder list with scrollbar
-        frm_list = tk.Frame(root, bg="#f0f0f0")
-        frm_list.pack(padx=20, pady=5, fill="both", expand=True)
-        self.listbox = tk.Listbox(
-            frm_list, selectmode=tk.EXTENDED,
-            font=("Arial", 10), height=8, width=65, activestyle="dotbox")
-        sb = tk.Scrollbar(frm_list, orient="vertical",
-                          command=self.listbox.yview)
-        self.listbox.config(yscrollcommand=sb.set)
-        self.listbox.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
+        # ── Status label ──────────────────────────────────────────────────────
+        self.lbl_status = tk.Label(
+            root,
+            text=u"\u5831\u544a\u751f\u6210\u7a0b\u5e8f\u5df2\u6e96\u5099\u5c31\u7dd2",
+            bg="#f0f0f0", font=("Arial", 11), wraplength=560)
+        self.lbl_status.pack(pady=(10, 20))
 
-        # Register drag-and-drop target if available
-        if _HAS_DND:
-            self.listbox.drop_target_register(DND_FILES)
-            self.listbox.dnd_bind("<<Drop>>", self._on_drop)
-
-        # Folder management buttons
-        frm_btns = tk.Frame(root, bg="#f0f0f0")
-        frm_btns.pack(padx=20, pady=5, fill="x")
-        bkw = {"font": ("Arial", 10), "width": 12, "relief": "raised", "bd": 2}
-        tk.Button(frm_btns, text="Add Folder",    bg="#4CAF50", fg="white",
-                  command=self._add_folder,        **bkw).pack(side="left", padx=(0, 6))
-        tk.Button(frm_btns, text="Remove Selected", bg="#795548", fg="white",
-                  command=self._remove_selected,   **bkw).pack(side="left", padx=(0, 6))
-        tk.Button(frm_btns, text="Clear All",     bg="#9E9E9E", fg="white",
-                  command=self._clear_list,        **bkw).pack(side="left")
-
-        # Progress bar
-        tk.Label(root, text="Progress:", bg="#f0f0f0",
-                 font=("Arial", 10)).pack(anchor="w", padx=20, pady=(10, 0))
-        self.progress = ttk.Progressbar(root, length=520, mode="determinate")
-        self.progress.pack(padx=20, pady=(0, 5))
-        self.lbl_status = tk.Label(root, text="", bg="#f0f0f0",
-                                   font=("Arial", 10), wraplength=520)
-        self.lbl_status.pack(padx=20, pady=(0, 8))
-
-        # Action buttons
+        # ── Action buttons ────────────────────────────────────────────────────
         frm_bot = tk.Frame(root, bg="#f0f0f0")
-        frm_bot.pack(padx=20, pady=(0, 20), fill="x")
+        frm_bot.pack(pady=(0, 30))
         self._btn_gen = tk.Button(
-            frm_bot, text="Generate Report",
+            frm_bot,
+            text=u"\u7522\u751f\u5831\u544a",
             bg="#3F51B5", fg="white",
-            font=("Arial", 12, "bold"), width=16, command=self._generate)
-        self._btn_gen.pack(side="left", padx=(0, 20))
-        tk.Button(frm_bot, text="Exit", bg="#F44336", fg="white",
-                  font=("Arial", 12, "bold"), width=12,
+            font=("Arial", 13, "bold"), width=18,
+            command=self._generate)
+        self._btn_gen.pack(side="left", padx=(0, 30))
+        tk.Button(frm_bot,
+                  text=u"\u9000\u51fa",
+                  bg="#F44336", fg="white",
+                  font=("Arial", 13, "bold"), width=14,
                   command=root.destroy).pack(side="left")
 
-    # ── Event handlers ────────────────────────────────────────────────────────
-    def _on_drop(self, event):
-        """Handle folder drag-and-drop into the listbox."""
-        paths = self.root.tk.splitlist(event.data)
-        for p in paths:
-            p = p.strip("{}")
-            if os.path.isdir(p) and p not in self.listbox.get(0, "end"):
-                self.listbox.insert("end", p)
-
-    def _add_folder(self):
-        """Open a folder browser dialog and add selection to the list."""
-        folder = filedialog.askdirectory(title="Select folder containing XML files")
-        if folder and folder not in self.listbox.get(0, "end"):
-            self.listbox.insert("end", folder)
-
-    def _remove_selected(self):
-        """Remove currently selected entries from the listbox."""
-        for i in reversed(self.listbox.curselection()):
-            self.listbox.delete(i)
-
-    def _clear_list(self):
-        """Clear all entries from the listbox."""
-        self.listbox.delete(0, "end")
-
+    # ── Helpers ───────────────────────────────────────────────────────────────
     def _set_status(self, msg):
         self.root.after(0, lambda: self.lbl_status.config(text=msg))
 
@@ -699,32 +658,44 @@ class App(object):
         self.root.after(0, lambda: self.progress.config(value=val * 100))
 
     def _set_busy(self, busy):
-        """Lock/unlock the Generate button to prevent duplicate execution."""
         state = "disabled" if busy else "normal"
         self.root.after(0, lambda: self._btn_gen.config(state=state))
         self._running = busy
 
     def _generate(self):
-        """Validate inputs and launch the processing pipeline in a background thread."""
         if self._running:
             return
 
         wafer_id = self.var_wid.get().strip()
         if not wafer_id:
             messagebox.showwarning(
-                "Missing Wafer ID",
-                "Please enter a Wafer ID before generating the report.")
+                u"\u7f3a\u5c11 Wafer_ID",
+                u"\u8acb\u8f38\u5165 Wafer_ID \u5f8c\u518d\u7522\u751f\u5831\u544a\u3002")
             return
 
-        folders = list(self.listbox.get(0, "end"))
-        if not folders:
-            messagebox.showwarning(
-                "No Folders",
-                "Please add at least one folder containing XML files.")
+        # Open folder picker to select base directory
+        base_dir = filedialog.askdirectory(
+            title=u"\u9078\u64c7\u542b XML \u8cc7\u6599\u593e\u7684\u4e0a\u5c64\u76ee\u9304")
+        if not base_dir:
             return
+
+        # Collect all XML files under folders matching Wafer_ID prefix
+        folders = []
+        try:
+            for entry in os.listdir(base_dir):
+                full = os.path.join(base_dir, entry)
+                if os.path.isdir(full) and entry.startswith(wafer_id):
+                    folders.append(full)
+        except OSError as e:
+            messagebox.showerror(u"\u932f\u8aa4", str(e))
+            return
+
+        # Also include the base_dir itself if it directly contains XML files
+        if not folders:
+            folders = [base_dir]
 
         self.progress.config(value=0)
-        self._set_status("Processing...")
+        self._set_status(u"\u8655\u7406\u4e2d\u2026")
         self._set_busy(True)
 
         def run():
@@ -735,8 +706,8 @@ class App(object):
                 if ok:
                     self._set_status(msg)
                 else:
-                    messagebox.showerror("Error", msg)
-                    self._set_status("Error occurred. See dialog for details.")
+                    messagebox.showerror(u"\u932f\u8aa4", msg)
+                    self._set_status(u"\u767c\u751f\u932f\u8aa4\uff0c\u8acb\u67e5\u770b\u8996\u7a97\u8a0a\u606f\u3002")
             self.root.after(0, finish)
 
         threading.Thread(target=run, daemon=True).start()
@@ -744,13 +715,9 @@ class App(object):
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    if _HAS_DND:
-        root = TkinterDnD.Tk()
-    else:
-        root = tk.Tk()
+    root = tk.Tk()
 
-    # Center window on screen
-    w, h = 600, 490
+    w, h = 620, 280
     root.update_idletasks()
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
