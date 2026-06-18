@@ -19,7 +19,7 @@ from collections import OrderedDict
 from typing import Optional
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, messagebox
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -35,6 +35,7 @@ from openpyxl.utils import get_column_letter
 PATH_PRIMARY  = r"Z:\ToFTP"               # Wafer Summary + Data Summary
 PATH_KYEC     = r"Z:\KYEC"               # Additional copy of Wafer Summary
 PATH_FALLBACK = r"C:\KGD_data\Molex_KGD_Data"  # Fallback when Z: unavailable
+BASE_XML_DIR  = r"C:\KGD_data\XML"        # Fixed source directory for XML input
 
 # ── Style constants ───────────────────────────────────────────────────────────
 FILL_PASS   = PatternFill("solid", fgColor="ADD8E6")  # Light blue  - Pass die
@@ -416,31 +417,35 @@ def save_reports(wafer_wb, data_wb, wafer_fn, data_fn):
     """
     Save both reports to primary paths (Z:\\ToFTP and Z:\\KYEC).
     If any primary path fails, fall back to C:\\KGD_data\\Molex_KGD_Data.
-    Returns (success: bool, message: str).
+    Returns (success: bool, message: str, wafer_summary_path: Optional[str]).
+    wafer_summary_path is the full path to the saved Wafer_Summary.xlsx
+    (for auto-opening), or None on failure.
     """
     ok1 = _try_save(wafer_wb, PATH_PRIMARY, wafer_fn)
     ok2 = _try_save(data_wb,  PATH_PRIMARY, data_fn)
     ok3 = _try_save(wafer_wb, PATH_KYEC,    wafer_fn)
 
     if ok1 and ok2 and ok3:
+        wafer_path = os.path.join(PATH_PRIMARY, wafer_fn)
         return True, (
             "Reports saved successfully.\n"
             "  {0}\\{1}\n"
             "  {0}\\{2}\n"
             "  {3}\\{1}"
-        ).format(PATH_PRIMARY, wafer_fn, data_fn, PATH_KYEC)
+        ).format(PATH_PRIMARY, wafer_fn, data_fn, PATH_KYEC), wafer_path
 
     # Fallback path
     fb1 = _try_save(wafer_wb, PATH_FALLBACK, wafer_fn)
     fb2 = _try_save(data_wb,  PATH_FALLBACK, data_fn)
     if fb1 and fb2:
+        wafer_path = os.path.join(PATH_FALLBACK, wafer_fn)
         return True, (
             "Warning: Z:\\ unavailable. Reports saved to fallback path.\n"
             "  {0}\\{1}\n"
             "  {0}\\{2}"
-        ).format(PATH_FALLBACK, wafer_fn, data_fn)
+        ).format(PATH_FALLBACK, wafer_fn, data_fn), wafer_path
 
-    return False, "Error: All save paths failed. Please check drive connections."
+    return False, "Error: All save paths failed. Please check drive connections.", None
 
 
 # ── Main processing pipeline ──────────────────────────────────────────────────
@@ -466,7 +471,7 @@ def process(wafer_id_user, folder_list, progress_cb, status_cb):
     xml_files = sorted(set(xml_files))
 
     if not xml_files:
-        return False, "No XML files found in the specified folders."
+        return False, "No XML files found in the specified folders.", None
 
     status_cb("Found {} XML file(s). Parsing...".format(len(xml_files)))
 
@@ -506,9 +511,9 @@ def process(wafer_id_user, folder_list, progress_cb, status_cb):
             "Error: Multiple LOT_IDs detected in the provided XML files:\n"
             + "\n".join("  - {}".format(v) for v in sorted(lot_ids))
             + "\nAll XML files must belong to the same lot."
-        )
+        ), None
     if not parsed:
-        return False, "Error: Failed to parse any XML files. Please verify file format."
+        return False, "Error: Failed to parse any XML files. Please verify file format.", None
 
     lot_id   = next(iter(lot_ids))
     part_num = next(iter(part_nums)) if part_nums else ""
@@ -589,9 +594,9 @@ def process(wafer_id_user, folder_list, progress_cb, status_cb):
     wafer_fn = "{}_Wafer_Summary.xlsx".format(base)
     data_fn  = "{}_Data_Summary.xlsx".format(base)
 
-    ok, msg = save_reports(wafer_wb, data_wb, wafer_fn, data_fn)
+    ok, msg, wafer_path = save_reports(wafer_wb, data_wb, wafer_fn, data_fn)
     progress_cb(1.0)
-    return ok, msg
+    return ok, msg, wafer_path
 
 
 # ── GUI ───────────────────────────────────────────────────────────────────────
@@ -673,13 +678,15 @@ class App(object):
                 u"\u8acb\u8f38\u5165 Wafer_ID \u5f8c\u518d\u7522\u751f\u5831\u544a\u3002")
             return
 
-        # Open folder picker to select base directory
-        base_dir = filedialog.askdirectory(
-            title=u"\u9078\u64c7\u542b XML \u8cc7\u6599\u593e\u7684\u4e0a\u5c64\u76ee\u9304")
-        if not base_dir:
+        # Fixed base directory - no folder picker dialog
+        base_dir = BASE_XML_DIR
+        if not os.path.isdir(base_dir):
+            messagebox.showerror(
+                u"\u932f\u8aa4",
+                u"\u627e\u4e0d\u5230\u8cc7\u6599\u593e\uff1a{}".format(base_dir))
             return
 
-        # Collect all XML files under folders matching Wafer_ID prefix
+        # Collect all subfolders matching Wafer_ID prefix
         folders = []
         try:
             for entry in os.listdir(base_dir):
@@ -699,12 +706,21 @@ class App(object):
         self._set_busy(True)
 
         def run():
-            ok, msg = process(
+            ok, msg, wafer_path = process(
                 wafer_id, folders, self._set_progress, self._set_status)
             def finish():
                 self._set_busy(False)
                 if ok:
                     self._set_status(msg)
+                    # Auto-open the generated Wafer_Summary.xlsx
+                    if wafer_path and os.path.exists(wafer_path):
+                        try:
+                            os.startfile(wafer_path)
+                        except Exception as e:
+                            messagebox.showwarning(
+                                u"\u7121\u6cd5\u81ea\u52d5\u958b\u555f",
+                                u"\u5831\u544a\u5df2\u5132\u5b58\u4f46\u7121\u6cd5\u81ea\u52d5\u958b\u555f\uff1a{}\n{}".format(
+                                    wafer_path, e))
                 else:
                     messagebox.showerror(u"\u932f\u8aa4", msg)
                     self._set_status(u"\u767c\u751f\u932f\u8aa4\uff0c\u8acb\u67e5\u770b\u8996\u7a97\u8a0a\u606f\u3002")
